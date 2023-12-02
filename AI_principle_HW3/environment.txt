@@ -1,0 +1,34 @@
+install tensorflow
+
+# to see which versions are available in anaconda
+conda search --full-name python 
+
+# https://www.tensorflow.org/install/source?hl=zh-tw#gpu
+# to this site find the version of cudnn cuda and tensorflow
+
+# crate a new environment
+conda create --name tf python=3.9 
+
+# activate the environment
+conda activate tf
+
+# install cudatoolkit cudnn
+conda install -c conda-forge cudatoolkit=11.2 cudnn=8.1.0
+
+# install tensorflow
+pip install tensorflow==2.6.0
+
+# detect tf can using gpu or not
+import tensorflow as tf
+print("Num GPUs Available: ", len(tf.config.list_physical_devices('GPU')))
+
+# error of too new protobuf
+# If you cannot immediately regenerate your protos, some other possible workarounds are:
+# 1. Downgrade the protobuf package to 3.20.x or lower.
+
+pip install --upgrade protobuf==3.20.1
+
+# adding this if there are dome warning when using tensorflow
+import logging, os
+logging.disable(logging.WARNING)
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
