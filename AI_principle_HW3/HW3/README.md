@@ -5,9 +5,12 @@
   - many different kinds of flowers...
 - train.py
 - model.py
+- gen_gif.py
 - README.md
 
 ## How to run the code
 ```python
 python3 train.py
 ```
+## the first result I trained
+![Animation](flowergan.gif)
