@@ -7,6 +7,7 @@
 - model.py
 - gen_gif.py
 - README.md
+- flowergan.gif
 
 ## How to run the code
 ```python
