@@ -32,3 +32,8 @@ pip install --upgrade protobuf==3.20.1
 import logging, os
 logging.disable(logging.WARNING)
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
+# if ther are a warning of tensorflow cannot fit the numpy>1.19.2
+# just ignore because the tensorflow can still work
+# and the numpy>1.20 is more advanced than 1.19.2 in many ways
+# so just ignore it
