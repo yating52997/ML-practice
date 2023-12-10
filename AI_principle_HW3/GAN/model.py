@@ -1,130 +1,104 @@
-import logging, os
-logging.disable(logging.WARNING)
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-
-import tensorflow as tf
-# Bring in the sequential api for the generator and discriminator
+from tensorflow.keras.layers import Conv2D, Flatten, Dropout, Input
 from tensorflow.keras.models import Sequential
-# Bring in the layers for the neural network
-from tensorflow.keras.layers import Conv2D, Dense, Flatten, Reshape, LeakyReLU, Dropout, UpSampling2D, BatchNormalization
-from train import latent_dim, figsize
 
-# def make_generator_model():
-#     model = tf.keras.Sequential()
-#     model.add(layers.Dense(8*8*256, use_bias=False, input_shape=(latent_dim,)))
-#     model.add(layers.BatchNormalization())
-#     model.add(layers.LeakyReLU())
+from tensorflow.keras.layers import Input, Dense, Reshape, Conv2DTranspose, BatchNormalization, LeakyReLU, Activation
+from tensorflow.keras.models import Sequential
 
-#     model.add(layers.Reshape((8, 8, 256)))
+from tensorflow.keras.initializers import RandomNormal
 
-#     model.add(layers.Conv2DTranspose(128, (5, 5), strides=(1, 1), padding='same', use_bias=False))
-#     # output_shape = (batch_size, 8, 8, 128)
-#     model.add(layers.BatchNormalization())
-#     model.add(layers.LeakyReLU())
-
-#     model.add(layers.Conv2DTranspose(64, (5, 5), strides=(2, 2), padding='same', use_bias=False))
-#     # output_shape = (batch_size, 16, 16, 64)
-#     model.add(layers.BatchNormalization())
-#     model.add(layers.LeakyReLU())
-
-#     model.add(layers.Conv2DTranspose(32, (5, 5), strides=(1, 1), padding='same', use_bias=False))
-#     # output_shape = (batch_size, 16, 16, 32)
-#     model.add(layers.BatchNormalization())
-#     model.add(layers.LeakyReLU())
-
-#     model.add(layers.Conv2DTranspose(3, (5, 5), strides=(2, 2), padding='same', use_bias=False, activation='tanh'))
-#     # output_shape = (batch_size, 32, 32, 3)
-#     return model
-
-def make_generator_model():
+def make_discriminator_model(figsize):
     model = Sequential()
-    
-    # Takes in random values and reshapes it to 7x7x128
-    # Beginnings of a generated image
-    model.add(Dense(8*8*128, input_dim=latent_dim))
+    layers = 32
+    # Initial Conv2D layer for downsampling
+    model.add(Conv2D(layers, (3, 3), strides=(2, 2), padding='same', input_shape=[figsize, figsize, 3]))
+    model.add(Dropout(0.2))
+    model.add(LeakyReLU(alpha=0.2))
     model.add(BatchNormalization())
-    # model.add(LeakyReLU(0.2))
-    model.add(Reshape((8,8,128)))
-    
-    # Upsampling block 1 
-    model.add(UpSampling2D())
-    model.add(Conv2D(128, 5, padding='same'))
+    # Gradual downsampling
+    downsampling_layers = [
+        (layers * 2, (3, 3)),
+        (layers * 4, (3, 3)),
+        (layers * 4, (3, 3)),
+        (layers * 4, (3, 3)),
+        # Add more layers or adjust strides for larger input sizes
+    ]
+    current_size = figsize // 2  # Adjust based on the initial Conv2D layer and strides above
+    for filters, kernel_size in downsampling_layers:
+        if current_size >= 4:  # We want to stop when the feature maps are 4x4
+            model.add(Conv2D(filters, kernel_size, strides=(2, 2), padding='same'))
+            model.add(Dropout(0.2))
+            model.add(LeakyReLU(alpha=0.2))
+            model.add(BatchNormalization())
+            current_size //= 2
+
+    # Flatten the output and add a Dense layer
+    model.add(Flatten())
+    model.add(Dense(1))
+    model.add(Activation('sigmoid'))
+    return model
+
+
+
+# Define the initializer
+initializer = RandomNormal(mean=0., stddev=0.02)
+
+def make_generator_model(latent_dim, figsize):
+    model = Sequential()
+    layers = 32
+    # Initial Dense layer for a modest upscale
+    model.add(Dense(layers * 4 * 4, input_dim=latent_dim, kernel_initializer=initializer))
+    # model.add(Dropout(0.2))
+    model.add(LeakyReLU(alpha=0.2))
+    model.add(Reshape((4, 4, layers)))
+
+    # Gradual upsampling and refinement
+    model.add(Conv2DTranspose(layers * 2, (3, 3), strides=(2, 2), padding='same', kernel_initializer=initializer))
+    # model.add(Dropout(0.2))
     model.add(BatchNormalization())
-    model.add(LeakyReLU(0.2))
-    
-    # Upsampling block 2 
-    model.add(UpSampling2D())
-    model.add(Conv2D(128, 5, padding='same'))
+    model.add(LeakyReLU(alpha=0.2))
+
+    # Gradual upsampling and refinement
+    model.add(Conv2DTranspose(layers * 2, (3, 3), strides=(2, 2), padding='same', kernel_initializer=initializer))
+    # model.add(Dropout(0.2))
     model.add(BatchNormalization())
-    model.add(LeakyReLU(0.2))
-    
-    # Convolutional block 1
-    model.add(Conv2D(64, 3, padding='same'))
-    model.add(BatchNormalization())
-    model.add(LeakyReLU(0.2))
-    
-    # Convolutional block 2
-    model.add(Conv2D(64, 3, padding='same'))
-    model.add(BatchNormalization())
-    model.add(LeakyReLU(0.2))
-    
-    # Conv layer to get to one channel
-    model.add(Conv2D(3, 3, padding='same'))
+    model.add(LeakyReLU(alpha=0.2))
+
+    # Adjusting the number of upsampling layers based on the final image size
+    # Adding more layers for larger figsize
+    upsampling_layers = [
+        (128, (3, 3)),
+        (64, (3, 3)),
+        (32, (3, 3)),
+        (32, (3, 3)),
+        (16, (3, 3)),
+        (8, (3, 3)),
+        (4, (3, 3)),
+        (3, (3, 3)),
+        # Add more layers or adjust strides for larger output sizes
+    ]
+
+    current_size = 16  # Adjust based on the initial dense layer and strides above
+    for filters, kernel_size in upsampling_layers:
+        if current_size < figsize:
+            model.add(Conv2DTranspose(filters, kernel_size, strides=(2, 2), padding='same', kernel_initializer=initializer))
+            model.add(Dropout(0.2))
+            model.add(BatchNormalization())
+            model.add(LeakyReLU(alpha=0.2))
+            current_size *= 2
+
+    # Ensure the final layer has the correct size
+    if current_size != figsize:
+        final_stride = (figsize // current_size, figsize // current_size)
+        model.add(Conv2DTranspose(64, (3, 3), strides=final_stride, padding='same', kernel_initializer=initializer))
+    # Output layer
+    model.add(Conv2DTranspose(3, (3, 3), activation='tanh', padding='same', kernel_initializer=initializer))
     
     return model
 
-# def make_discriminator_model():
-#     model = tf.keras.Sequential()
-#     model.add(layers.Conv2D(64, (5, 5), strides=(2, 2), padding='same',
-#                                      input_shape=[figsize, figsize, 3]))
-#     model.add(layers.LeakyReLU())
-#     model.add(layers.Dropout(0.3))
-
-#     model.add(layers.Conv2D(128, (5, 5), strides=(2, 2), padding='same'))
-#     model.add(layers.LeakyReLU())
-#     model.add(layers.Dropout(0.3))
-
-#     model.add(layers.Flatten())
-#     model.add(layers.Dense(1))
-
-#     return model
-
-def make_discriminator_model(): 
-    model = Sequential()
-    
-    # First Conv Block
-    model.add(Conv2D(32, 5, input_shape = (figsize, figsize, 3)))
-    model.add(BatchNormalization())
-    model.add(LeakyReLU(0.2))
-    model.add(Dropout(0.4))
-    
-    # Second Conv Block
-    model.add(Conv2D(64, 5))
-    model.add(BatchNormalization())
-    model.add(LeakyReLU(0.2))
-    model.add(Dropout(0.4))
-    
-    # Third Conv Block
-    model.add(Conv2D(128, 5))
-    model.add(BatchNormalization())
-    model.add(LeakyReLU(0.2))
-    model.add(Dropout(0.4))
-    
-    # Fourth Conv Block
-    model.add(Conv2D(256, 5))
-    model.add(BatchNormalization())
-    model.add(LeakyReLU(0.2))
-    model.add(Dropout(0.4))
-    
-    # Flatten then pass to dense layer
-    model.add(Flatten())
-    model.add(Dropout(0.4))
-    model.add(Dense(1))
-    
-    return model 
 
 if __name__ == '__main__':
-    generator = make_generator_model()
-    discriminator = make_discriminator_model()
-    generator.summary()
-    discriminator.summary()
+    generator = make_generator_model(latent_dim=256, figsize=32)
+    (generator.summary())
+    discriminator = make_discriminator_model(figsize=32)
+    (discriminator.summary())
+
