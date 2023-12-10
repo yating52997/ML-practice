@@ -4,59 +4,42 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import layers
 import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 import model
-from IPython import display
+from utils import *
+import argparse
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--latent_dim', type = int, default = 10)
+parser.add_argument('--figsize', type = int, default = 32)
+parser.add_argument('--batch_size', type = int, default = 16)
+parser.add_argument('--epochs', type = int, default = 1000)
+parser.add_argument('--resume', type = str, default = '')
+parser.add_argument('--save', type = str, default = './checkpoint')
+parser.add_argument('--pics_dir', type = str, default = './pic')
+parser.add_argument('--dataset_dir', type = str, default = './dataset_flowers/sunflower')
+parser.add_argument('--lr', type = float, default = 1e-5)
+args = parser.parse_args()
 
-figsize = 32
-latent_dim = 3
-batch_size = 16
-epochs = 100
-checkpoint_dir = './training_checkpoints'
+latent_dim = args.latent_dim
+figsize = args.figsize
+batch_size = args.batch_size
+epochs = args.epochs
+checkpoint_dir = args.save
 checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
+resume_dir = args.resume
+pics_dir = args.pics_dir
+dataset_dir = args.dataset_dir
+lr = args.lr
 
+if not os.path.exists(checkpoint_dir):
+    os.makedirs(checkpoint_dir)
 
-### The code that can plot like figure 1
-def plot_latent_space(vae, n=5):
-    # display an n*n 2D manifold of digits
-    digit_size = figsize
-    scale = 1.0
-    figure = np.zeros((digit_size * n, digit_size * n, 3))
-    # linearly spaced coordinates corresponding to the 2D plot
-    # of digit classes in the latent space
-    grid_x = np.linspace(-scale, scale, n)
-    grid_y = np.linspace(-scale, scale, n)[::-1]
+if not os.path.exists(pics_dir):
+    os.makedirs(pics_dir)
 
-    for i, yi in enumerate(grid_y):
-        for j, xi in enumerate(grid_x):
-            rest_latent = np.ones((1,latent_dim-2))*yi
-            z_sample = np.array([[xi, yi]])
-            z_sample = np.concatenate((z_sample, rest_latent), axis=1)
-            x_decoded = vae.decoder.predict(z_sample)
-            digit = x_decoded[0].reshape(digit_size, digit_size, 3)
-            figure[
-                i * digit_size : (i + 1) * digit_size,
-                j * digit_size : (j + 1) * digit_size,
-            ] = digit
-
-    plt.figure(figsize=(figsize, figsize))
-    start_range = digit_size // 2
-    end_range = n * digit_size + start_range
-    pixel_range = np.arange(start_range, end_range, digit_size)
-    sample_range_x = np.round(grid_x, 1)
-    sample_range_y = np.round(grid_y, 1)
-    plt.xticks(pixel_range, sample_range_x)
-    plt.yticks(pixel_range, sample_range_y)
-    plt.xlabel("z[0]")
-    plt.ylabel("z[1]")
-    plt.imshow(figure)
-    # plt.show()
-    plt.savefig('out.png')
-    return
 
 def generator_loss(fake_output):
     return cross_entropy(tf.ones_like(fake_output), fake_output)
@@ -89,84 +72,71 @@ def train_step(images, noise):
 
 def generate_and_save_images(model, epoch, test_input):
     # Notice `training` is set to False.
-    # This is so all layers run in inference mode (batchnorm).
+    plt.cla()
     predictions = model(test_input, training=False)
-
-    fig = plt.figure(figsize=(4, 4))
-
-    # for i in range(predictions.shape[0]):
-    #     plt.subplot(4, 4, i+1)
-    plt.imshow((predictions[0, :, :, :] ) * 255 ) #+ 127.0 
-        # plt.axis('off')
-
-    plt.savefig(os.path.join("./pic_1", "image_at_epoch_{:04d}.jpg".format(epoch)))
+    plt.imshow((predictions[0, :, :, :] / 2.0) + 0.5)
+    plt.savefig(os.path.join(pics_dir, "image_at_epoch_{:04d}.jpg".format(epoch)))
     return
 
 def train(dataset, epochs):
     ### input the noise
     
-    # test_input = tf.random.normal([1, latent_dim], seed = 1)
     for epoch in range(epochs):
         noise = tf.random.normal(shape = [1, latent_dim], seed = 1)
-        gen_loss = []
-        disc_loss = []
+        gen_loss = 0
+        disc_loss = 0
         print("Epoch: ", epoch)
         for image_batch in tqdm(dataset):
+            std_gaussian = get_stddev(epoch)
+            gaussian_noise = tf.random.normal(shape = [batch_size, latent_dim], mean = 0.0, 
+                                              stddev = std_gaussian, dtype=tf.float32)
+            image_batch += gaussian_noise
             g_loss, d_loss = train_step(image_batch, noise)
-            gen_loss.append(g_loss)
-            disc_loss.append(d_loss)
-            # Save the model every 15 epochs
-            # if (epoch + 1) % 15 == 0:
-            #     checkpoint.save(file_prefix = checkpoint_prefix)
-        print("Generator loss: ", np.mean(gen_loss))
-        print("Discriminator loss: ", np.mean(disc_loss))
-        # Produce images for the GIF as you go
-        if (epoch + 1) % 15 == 0:
-            checkpoint.save(file_prefix = checkpoint_prefix)
-        if (epoch + 1) % 1 == 0:
-            display.clear_output(wait=True)
-            generate_and_save_images(generator, epoch + 1, noise)
+            gen_loss += (g_loss)
+            disc_loss += (d_loss)
+            
+        print("Generator loss: ", gen_loss / len(dataset))
+        print("Discriminator loss: ", disc_loss / len(dataset))
+        gen_losses.append(gen_loss/len(dataset))
+        disc_losses.append(disc_loss/len(dataset))
+        plot_losses(gen_losses, disc_losses)
+        # if (epoch + 1) % 20 == 0:
+        #     checkpoint.save(file_prefix = checkpoint_prefix)
+        generate_and_save_images(generator, epoch + 1, noise)
 
 
     # Generate after the final epoch
-    display.clear_output(wait=True)
     generate_and_save_images(generator, epochs, noise)
+
+
+def get_stddev(epoch, initial_stddev=1.0, decay_rate=0.002):
+    return initial_stddev / (1 + decay_rate * epoch)
 
 if __name__ == '__main__':
     ### Load dataset from folder
     dataset = keras.utils.image_dataset_from_directory(
         "./dataset_flowers", label_mode=None, seed=123, image_size=(figsize, figsize), batch_size=batch_size,
     )
-    # for images in dataset.take(1):
-    #     plt.imshow(images[0].numpy().astype("uint8"))
-    #     plt.savefig('./dataset_flowers.png')
-    #     break
-    # mean = np.mean(dataset)
-    # std = np.std(dataset)
-    dataset = dataset.map(lambda x: (x)/255.0) # - 127.0
+
+    dataset = dataset.map(lambda x: tf.clip_by_value((x - 127.5) / 127.5, -1, 1)) # - 127.0
     
-    ### Show the figure
-    # for x in dataset:
-    #     plt.axis("off")
-    #     plt.imshow((x.numpy() * 255).astype("int32")[0])
-    #     plt.savefig('./pic/dataset_flowers.png')
-    #     break
 
     ### Build the model
     generator = model.make_generator_model()
     discriminator = model.make_discriminator_model()
     
-
-    
-    
     ### Define the loss and optimizers
-    generator_optimizer = tf.keras.optimizers.Adam(1e-4)
-    discriminator_optimizer = tf.keras.optimizers.Adam(1e-4)
+    gen_losses = []
+    disc_losses = []
+    generator_optimizer = tf.keras.optimizers.Adam(lr)
+    discriminator_optimizer = tf.keras.optimizers.Adam(lr)
     cross_entropy = tf.keras.losses.BinaryCrossentropy(from_logits=True)
     checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                  discriminator_optimizer=discriminator_optimizer,
                                  generator=generator,
-                                 discriminator=discriminator)
+                                 discriminator=discriminator,
+                                 history=dict(gen_losses=gen_losses, disc_losses=disc_losses)
+                                 )
     ### train the model
     train(dataset, epochs)
 
