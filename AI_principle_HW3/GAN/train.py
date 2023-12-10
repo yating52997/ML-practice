@@ -12,11 +12,11 @@ import model
 from IPython import display
 
 
-figsize = 128
-latent_dim = 1000
-batch_size = 8
-epochs = 1000
-checkpoint_dir = './training_checkpoints_1'
+figsize = 32
+latent_dim = 3
+batch_size = 16
+epochs = 100
+checkpoint_dir = './training_checkpoints'
 checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
 
 
@@ -96,10 +96,10 @@ def generate_and_save_images(model, epoch, test_input):
 
     # for i in range(predictions.shape[0]):
     #     plt.subplot(4, 4, i+1)
-    plt.imshow((predictions[0, :, :, :] * 0.5 ) +0.5) #+ 127.0 
+    plt.imshow((predictions[0, :, :, :] ) * 255 ) #+ 127.0 
         # plt.axis('off')
 
-    plt.savefig(os.path.join("./pic_3", "image_at_epoch_{:04d}.jpg".format(epoch)))
+    plt.savefig(os.path.join("./pic_1", "image_at_epoch_{:04d}.jpg".format(epoch)))
     return
 
 def train(dataset, epochs):
@@ -107,8 +107,7 @@ def train(dataset, epochs):
     
     # test_input = tf.random.normal([1, latent_dim], seed = 1)
     for epoch in range(epochs):
-        noise = tf.random.normal(mean = 0,stddev= 1 , shape=[1, latent_dim],seed=1)
-        # noise = tf.random.normal([batch_size, 8, 8, 3], seed = 1)
+        noise = tf.random.normal(shape = [1, latent_dim], seed = 1)
         gen_loss = []
         disc_loss = []
         print("Epoch: ", epoch)
@@ -144,7 +143,7 @@ if __name__ == '__main__':
     #     break
     # mean = np.mean(dataset)
     # std = np.std(dataset)
-    dataset = dataset.map(lambda x: (x - 127.0)/127.0) # - 127.0
+    dataset = dataset.map(lambda x: (x)/255.0) # - 127.0
     
     ### Show the figure
     # for x in dataset:
