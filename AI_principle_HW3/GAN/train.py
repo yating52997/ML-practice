@@ -15,7 +15,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--latent_dim', type = int, default = 10)
 parser.add_argument('--figsize', type = int, default = 32)
 parser.add_argument('--batch_size', type = int, default = 16)
-parser.add_argument('--epochs', type = int, default = 1000)
+parser.add_argument('--epochs', type = int, default = 100)
 parser.add_argument('--resume', type = str, default = '')
 parser.add_argument('--save', type = str, default = './checkpoint')
 parser.add_argument('--pics_dir', type = str, default = './pic')
@@ -70,13 +70,6 @@ def train_step(images, noise):
     
     return gen_loss, disc_loss
 
-def generate_and_save_images(model, epoch, test_input):
-    # Notice `training` is set to False.
-    plt.cla()
-    predictions = model(test_input, training=False)
-    plt.imshow((predictions[0, :, :, :] / 2.0) + 0.5)
-    plt.savefig(os.path.join(pics_dir, "image_at_epoch_{:04d}.jpg".format(epoch)))
-    return
 
 def train(dataset, epochs):
     ### input the noise
@@ -88,7 +81,7 @@ def train(dataset, epochs):
         print("Epoch: ", epoch)
         for image_batch in tqdm(dataset):
             std_gaussian = get_stddev(epoch)
-            gaussian_noise = tf.random.normal(shape = [batch_size, latent_dim], mean = 0.0, 
+            gaussian_noise = tf.random.normal(shape = tf.shape(image_batch), mean = 0.0, 
                                               stddev = std_gaussian, dtype=tf.float32)
             image_batch += gaussian_noise
             g_loss, d_loss = train_step(image_batch, noise)
@@ -100,10 +93,9 @@ def train(dataset, epochs):
         gen_losses.append(gen_loss/len(dataset))
         disc_losses.append(disc_loss/len(dataset))
         plot_losses(gen_losses, disc_losses)
+        generate_and_save_images(generator, epoch + 1, noise, pics_dir)
         # if (epoch + 1) % 20 == 0:
         #     checkpoint.save(file_prefix = checkpoint_prefix)
-        generate_and_save_images(generator, epoch + 1, noise)
-
 
     # Generate after the final epoch
     generate_and_save_images(generator, epochs, noise)
