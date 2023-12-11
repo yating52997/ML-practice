@@ -42,6 +42,7 @@ noise = tf.random.normal(shape = [1, latent_dim], seed = 1)
 **latent_dim = 10**
 
 epochs = 100, batch_size = 16, time = 40 sec/epoch
+
 ![Flower small](pics/flower_small.gif)
 
 
@@ -49,6 +50,7 @@ epochs = 100, batch_size = 16, time = 40 sec/epoch
 **latent_dim = 256**
 
 epochs = 100, batch_size = 16, time = 40 sec/epoch
+
 ![Flower small](pics/flower_small_256.gif)
 
 
@@ -56,4 +58,5 @@ epochs = 100, batch_size = 16, time = 40 sec/epoch
 **atent_dim = 1024**
 
 epochs = 500, batch_size = 32, time = 30 sec/epoch
+
 ![Flower Big](pics/flower_big.gif)
