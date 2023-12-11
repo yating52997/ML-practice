@@ -8,7 +8,7 @@ from tensorflow.keras.initializers import RandomNormal
 
 def make_discriminator_model(figsize):
     model = Sequential()
-    layers = 32
+    layers = 16
     # Initial Conv2D layer for downsampling
     model.add(Conv2D(layers, (3, 3), strides=(2, 2), padding='same', input_shape=[figsize, figsize, 3]))
     model.add(Dropout(0.2))
@@ -34,7 +34,7 @@ def make_discriminator_model(figsize):
     # Flatten the output and add a Dense layer
     model.add(Flatten())
     model.add(Dense(1))
-    model.add(Activation('sigmoid'))
+    model.add(Activation('tanh'))
     return model
 
 
@@ -44,7 +44,7 @@ initializer = RandomNormal(mean=0., stddev=0.02)
 
 def make_generator_model(latent_dim, figsize):
     model = Sequential()
-    layers = 32
+    layers = 16
     # Initial Dense layer for a modest upscale
     model.add(Dense(layers * 4 * 4, input_dim=latent_dim, kernel_initializer=initializer))
     # model.add(Dropout(0.2))
@@ -58,7 +58,7 @@ def make_generator_model(latent_dim, figsize):
     model.add(LeakyReLU(alpha=0.2))
 
     # Gradual upsampling and refinement
-    model.add(Conv2DTranspose(layers * 2, (3, 3), strides=(2, 2), padding='same', kernel_initializer=initializer))
+    model.add(Conv2DTranspose(layers * 4, (3, 3), strides=(2, 2), padding='same', kernel_initializer=initializer))
     # model.add(Dropout(0.2))
     model.add(BatchNormalization())
     model.add(LeakyReLU(alpha=0.2))
@@ -66,13 +66,13 @@ def make_generator_model(latent_dim, figsize):
     # Adjusting the number of upsampling layers based on the final image size
     # Adding more layers for larger figsize
     upsampling_layers = [
-        (128, (3, 3)),
-        (64, (3, 3)),
-        (32, (3, 3)),
-        (32, (3, 3)),
-        (16, (3, 3)),
-        (8, (3, 3)),
-        (4, (3, 3)),
+        (layers * 4, (3, 3)),
+        (layers * 4, (3, 3)),
+        (layers * 8, (3, 3)),
+        (layers * 8, (3, 3)),
+        (layers * 8, (3, 3)),
+        (layers * 4, (3, 3)),
+        (layers * 4, (3, 3)),
         (3, (3, 3)),
         # Add more layers or adjust strides for larger output sizes
     ]
@@ -90,6 +90,16 @@ def make_generator_model(latent_dim, figsize):
     if current_size != figsize:
         final_stride = (figsize // current_size, figsize // current_size)
         model.add(Conv2DTranspose(64, (3, 3), strides=final_stride, padding='same', kernel_initializer=initializer))
+    
+    # general convolutional layers
+    model.add(Conv2DTranspose(layers, (3, 3), padding='same', kernel_initializer=initializer))
+    model.add(BatchNormalization())
+    model.add(LeakyReLU(alpha=0.2))
+
+    model.add(Conv2DTranspose(layers, (3, 3), padding='same', kernel_initializer=initializer))
+    model.add(BatchNormalization())
+    model.add(LeakyReLU(alpha=0.2))
+
     # Output layer
     model.add(Conv2DTranspose(3, (3, 3), activation='tanh', padding='same', kernel_initializer=initializer))
     
